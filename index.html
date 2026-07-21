@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChiangKhong Good Foods</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; font-family: 'Sarabun', sans-serif; }
+    body { margin: 0; padding: 15px; background-color: #f8f9fa; color: #333; }
+    header { text-align: center; margin-bottom: 20px; }
+    h1 { margin: 0; color: #1e3d59; font-size: 24px; }
+    p.subtitle { color: #666; margin-top: 5px; font-size: 14px; }
+
+    .filter-box {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    select {
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background-color: white;
+      width: 100%;
+    }
+
+    #map {
+      height: 300px;
+      width: 100%;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .shop-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 15px;
+    }
+    .shop-card {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      border-top: 4px solid #1e3d59;
+    }
+    .shop-card h3 { margin: 0 0 8px 0; font-size: 18px; color: #1e3d59; }
+    .shop-card p { margin: 4px 0; color: #555; font-size: 14px; }
+    
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn {
+      flex: 1;
+      text-align: center;
+      padding: 8px 0;
+      background: #17a2b8;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .btn-call { background: #28a745; }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      font-size: 16px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🍲 ChiangKhong Good Foods</h1>
+    <p class="subtitle">แนะนำร้านอาหารในชุมชนเชียงของ</p>
+  </header>
+
+  <!-- Filter Section -->
+  <div class="filter-box">
+    <select id="typeSelect" onchange="onTypeChange()">
+      <option value="">-- เลือกประเภทอาหาร --</option>
+    </select>
+
+    <select id="groupSelect" onchange="onGroupChange()" disabled>
+      <option value="">-- เลือกกลุ่มร้านอาหาร --</option>
+    </select>
+  </div>
+
+  <!-- Map Display -->
+  <div id="map"></div>
+
+  <!-- Shop List -->
+  <div id="loading" class="loading">กำลังโหลดข้อมูลร้านอาหาร...</div>
+  <div id="shopList" class="shop-list"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ** ใส่ URL ของ Google Apps Script ของคุณที่นี่ **
+    const GOOGLE_SCRIPT_URL = "YOUR_GOOGLE_APPS_SCRIPT_URL";
+
+    let rawData = [];
+    let map, markers = [];
+
+    // Initialize Map
+    function initMap() {
+      map = L.map('map').setView([20.2612, 100.4045], 13); // ศูนย์กลางเชียงของ
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+    }
+
+    // Fetch Data from Google Sheets
+    async function fetchData() {
+      try {
+        const response = await fetch(GOOGLE_SCRIPT_URL);
+        rawData = await response.json();
+        document.getElementById("loading").style.display = "none";
+        populateTypes();
+      } catch (error) {
+        document.getElementById("loading").innerText = "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+        console.error("Error fetching data:", error);
+      }
+    }
+
+    // Populate Type Dropdown
+    function populateTypes() {
+      const typeSelect = document.getElementById("typeSelect");
+      const types = [...new Set(rawData.map(item => item.type_name))];
+
+      types.forEach(typeName => {
+        if (typeName) {
+          let opt = document.createElement("option");
+          opt.value = typeName;
+          opt.innerText = typeName;
+          typeSelect.appendChild(opt);
+        }
+      });
+    }
+
+    // Handle Type Change
+    function onTypeChange() {
+      const selectedType = document.getElementById("typeSelect").value;
+      const groupSelect = document.getElementById("groupSelect");
+
+      groupSelect.innerHTML = '<option value="">-- เลือกกลุ่มร้านอาหาร --</option>';
+      groupSelect.disabled = true;
+
+      if (!selectedType) return;
+
+      const filteredGroups = [...new Set(
+        rawData
+          .filter(item => item.type_name === selectedType)
+          .map(item => item.group_name)
+      )];
+
+      filteredGroups.forEach(groupName => {
+        if (groupName) {
+          let opt = document.createElement("option");
+          opt.value = groupName;
+          opt.innerText = groupName;
+          groupSelect.appendChild(opt);
+        }
+      });
+
+      groupSelect.disabled = false;
+    }
+
+    // Handle Group Change
+    function onGroupChange() {
+      const selectedType = document.getElementById("typeSelect").value;
+      const selectedGroup = document.getElementById("groupSelect").value;
+
+      const shops = rawData.filter(item => 
+        item.type_name === selectedType && item.group_name === selectedGroup
+      );
+
+      displayShops(shops);
+    }
+
+    // Display Shops and Map Markers
+    function displayShops(shops) {
+      const listContainer = document.getElementById("shopList");
+      listContainer.innerHTML = "";
+
+      // Clear map markers
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+
+      if (shops.length === 0) {
+        listContainer.innerHTML = "<p style='grid-column: 1/-1; text-align: center;'>ไม่พบร้านอาหารในหมวดหมู่นี้</p>";
+        return;
+      }
+
+      shops.forEach(shop => {
+        // Create Card
+        const card = document.createElement("div");
+        card.className = "shop-card";
+        card.innerHTML = `
+          <h3>${shop.shop_name}</h3>
+          <p>${shop.detail || 'ไม่มีข้อมูลรายละเอียด'}</p>
+          <div class="btn-group">
+            ${shop.lat && shop.lng ? `<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${shop.lat},${shop.lng}" target="_blank">🗺️ นำทาง</a>` : ''}
+            ${shop.phone ? `<a class="btn btn-call" href="tel:${shop.phone}">📞 โทร</a>` : ''}
+          </div>
+        `;
+        listContainer.appendChild(card);
+
+        // Add Marker
+        if (shop.lat && shop.lng) {
+          const marker = L.marker([parseFloat(shop.lat), parseFloat(shop.lng)])
+            .addTo(map)
+            .bindPopup(`<b>${shop.shop_name}</b><br>${shop.detail || ''}`);
+          markers.push(marker);
+        }
+      });
+
+      // Pan map to first shop position
+      if (shops.length > 0 && shops[0].lat && shops[0].lng) {
+        map.setView([parseFloat(shops[0].lat), parseFloat(shops[0].lng)], 14);
+      }
+    }
+
+    window.onload = () => {
+      initMap();
+      fetchData();
+    };
+  </script>
+</body>
+</html>
