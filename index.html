@@ -11,7 +11,6 @@
     * { box-sizing: border-box; font-family: 'Sarabun', sans-serif; }
     body { margin: 0; padding: 15px; background-color: #f8f9fa; color: #333; }
     
-    /* สไตล์สำหรับภาพหน้าปก */
     .cover-image {
       width: 100%;
       height: 200px;
@@ -36,7 +35,6 @@
       width: 100%;
     }
 
-    /* ปุ่มตำแหน่งของฉัน (GPS) */
     .btn-location {
       width: 100%;
       padding: 12px;
@@ -53,7 +51,6 @@
     }
     .btn-location:active { background-color: #218838; }
 
-    /* ข้อความแจ้งสถานะกำลังหา GPS */
     .geo-status {
       text-align: center;
       font-size: 13px;
@@ -87,11 +84,13 @@
     
     .btn-group {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-top: 12px;
     }
     .btn {
       flex: 1;
+      min-width: 80px;
       text-align: center;
       padding: 8px 0;
       background: #17a2b8;
@@ -99,8 +98,11 @@
       text-decoration: none;
       border-radius: 6px;
       font-size: 13px;
+      border: none;
+      cursor: pointer;
     }
     .btn-call { background: #28a745; }
+    .btn-review { background: #ffc107; color: #333; font-weight: bold; }
 
     .loading {
       text-align: center;
@@ -108,11 +110,54 @@
       font-size: 16px;
       color: #666;
     }
+
+    /* Modal ป๊อบอัพให้คะแนน */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .star-rating {
+      font-size: 30px;
+      color: #ddd;
+      cursor: pointer;
+      margin: 10px 0;
+    }
+    .star-rating span.active { color: #ffc107; }
+    .modal-content textarea {
+      width: 100%;
+      height: 80px;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      margin-bottom: 12px;
+      font-family: inherit;
+    }
+    .modal-btn-group {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-submit { background: #28a745; color: white; flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-close { background: #dc3545; color: white; flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; }
   </style>
 </head>
 <body>
 
-  <!-- รูปภาพหน้าปก (หากโหลดรูปไม่ได้จะซ่อนไว้อัตโนมัติ) -->
+  <!-- รูปภาพหน้าปก -->
   <img src="food1.png" alt="ChiangKhong Good Foods" class="cover-image" onerror="this.style.display='none'">
 
   <!-- Filter Section -->
@@ -126,7 +171,7 @@
     </select>
   </div>
 
-  <!-- ปุ่มค้นหาตำแหน่งปัจจุบัน -->
+  <!-- ปุ่ม GPS -->
   <button type="button" class="btn-location" onclick="getUserLocation()">
     📍 แสดงตำแหน่งของฉัน (GPS)
   </button>
@@ -139,6 +184,25 @@
   <div id="loading" class="loading">กำลังโหลดข้อมูลร้านอาหาร...</div>
   <div id="shopList" class="shop-list"></div>
 
+  <!-- Modal สำหรับให้คะแนนร้าน -->
+  <div id="reviewModal" class="modal">
+    <div class="modal-content">
+      <h3 id="modalShopName" style="margin-top:0; color:#1e3d59;">ให้คะแนนร้านอาหาร</h3>
+      <div class="star-rating" id="starContainer">
+        <span onclick="setRating(1)">★</span>
+        <span onclick="setRating(2)">★</span>
+        <span onclick="setRating(3)">★</span>
+        <span onclick="setRating(4)">★</span>
+        <span onclick="setRating(5)">★</span>
+      </div>
+      <textarea id="reviewComment" placeholder="เขียนรีวิว หรือเมนูแนะนำ (ถ้ามี)..."></textarea>
+      <div class="modal-btn-group">
+        <button class="btn-submit" onclick="submitReview()">ส่งรีวิว</button>
+        <button class="btn-close" onclick="closeReviewModal()">ยกเลิก</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
@@ -148,16 +212,18 @@
     let map;
     let markers = [];
     let userMarker = null;
+    
+    // ตัวแปรสำหรับระบบรีวิว
+    let currentShopForReview = "";
+    let selectedRating = 5;
 
-    // Initialize Map
     function initMap() {
-      map = L.map('map').setView([20.2612, 100.4045], 13); // ศูนย์กลางเชียงของ
+      map = L.map('map').setView([20.2612, 100.4045], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
       }).addTo(map);
     }
 
-    // Fetch Data from Google Sheets
     async function fetchData() {
       try {
         const response = await fetch(GOOGLE_SCRIPT_URL);
@@ -170,7 +236,6 @@
       }
     }
 
-    // Populate Type Dropdown
     function populateTypes() {
       const typeSelect = document.getElementById("typeSelect");
       const types = [...new Set(rawData.map(item => item.type_name))];
@@ -185,7 +250,6 @@
       });
     }
 
-    // Handle Type Change
     function onTypeChange() {
       const selectedType = document.getElementById("typeSelect").value;
       const groupSelect = document.getElementById("groupSelect");
@@ -213,7 +277,6 @@
       groupSelect.disabled = false;
     }
 
-    // Handle Group Change
     function onGroupChange() {
       const selectedType = document.getElementById("typeSelect").value;
       const selectedGroup = document.getElementById("groupSelect").value;
@@ -225,12 +288,10 @@
       displayShops(shops);
     }
 
-    // Display Shops and Map Markers
     function displayShops(shops) {
       const listContainer = document.getElementById("shopList");
       listContainer.innerHTML = "";
 
-      // Clear map markers
       markers.forEach(m => map.removeLayer(m));
       markers = [];
 
@@ -248,6 +309,7 @@
           <div class="btn-group">
             ${shop.lat && shop.lng ? `<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${shop.lat},${shop.lng}" target="_blank">🗺️ นำทาง</a>` : ''}
             ${shop.phone ? `<a class="btn btn-call" href="tel:${shop.phone}">📞 โทร</a>` : ''}
+            <button class="btn btn-review" onclick="openReviewModal('${shop.shop_name}')">⭐ รีวิว</button>
           </div>
         `;
         listContainer.appendChild(card);
@@ -265,7 +327,6 @@
       }
     }
 
-    // ฟังก์ชันค้นหาตำแหน่งผู้ใช้ (GPS)
     function getUserLocation() {
       const statusEl = document.getElementById("geoStatus");
 
@@ -294,18 +355,65 @@
           statusEl.innerText = "✅ พบตำแหน่งของคุณแล้ว";
         },
         (error) => {
-          let msg = "ไม่สามารถระบุตำแหน่งได้";
-          if (error.code === error.PERMISSION_DENIED) {
-            msg = "❌ โปรดอนุญาตการเข้าถึง GPS ในตั้งค่าเบราว์เซอร์";
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            msg = "❌ ไม่พบสัญญาณ GPS";
-          } else if (error.code === error.TIMEOUT) {
-            msg = "❌ ค้นหาตำแหน่งหมดเวลา";
-          }
-          statusEl.innerText = msg;
+          statusEl.innerText = "❌ ไม่สามารถระบุตำแหน่ง GPS ได้";
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
+    }
+
+    // --- ฟังก์ชันสำหรับระบบรีวิว ⭐ ---
+    function openReviewModal(shopName) {
+      currentShopForReview = shopName;
+      document.getElementById("modalShopName").innerText = "⭐ ให้คะแนน: " + shopName;
+      document.getElementById("reviewComment").value = "";
+      setRating(5); // ค่าเริ่มต้น 5 ดาว
+      document.getElementById("reviewModal").style.display = "flex";
+    }
+
+    function closeReviewModal() {
+      document.getElementById("reviewModal").style.display = "none";
+    }
+
+    function setRating(stars) {
+      selectedRating = stars;
+      const starSpans = document.querySelectorAll("#starContainer span");
+      starSpans.forEach((span, idx) => {
+        if (idx < stars) {
+          span.classList.add("active");
+        } else {
+          span.classList.remove("active");
+        }
+      });
+    }
+
+    async function submitReview() {
+      const comment = document.getElementById("reviewComment").value;
+      const submitBtn = document.querySelector(".btn-submit");
+      
+      submitBtn.innerText = "กำลังบันทึก...";
+      submitBtn.disabled = true;
+
+      const payload = {
+        shop_name: currentShopForReview,
+        rating: selectedRating,
+        comment: comment
+      };
+
+      try {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+
+        alert("ขอบคุณสำหรับคะแนนรีวิวครับ!");
+        closeReviewModal();
+      } catch (error) {
+        alert("เกิดข้อผิดพลาดในการส่งข้อมูล โปรดลองอีกครั้ง");
+        console.error("Error submitting review:", error);
+      } finally {
+        submitBtn.innerText = "ส่งรีวิว";
+        submitBtn.disabled = false;
+      }
     }
 
     window.onload = () => {
