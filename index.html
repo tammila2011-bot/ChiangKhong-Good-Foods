@@ -8,6 +8,34 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    /* ปุ่มตำแหน่งของฉัน (GPS) */
+.btn-location {
+  width: 100%;
+  padding: 12px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  transition: background-color 0.2s ease;
+}
+
+.btn-location:active {
+  background-color: #218838;
+}
+
+/* ข้อความแจ้งสถานะกำลังหา GPS */
+.geo-status {
+  text-align: center;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 10px;
+  display: none; /* ซ่อนไว้ก่อน พอกดปุ่มค่อยสั่งให้แสดง */
+}
     * { box-sizing: border-box; font-family: 'Sarabun', sans-serif; }
     body { margin: 0; padding: 15px; background-color: #f8f9fa; color: #333; }
     header { text-align: center; margin-bottom: 20px; }
@@ -239,6 +267,14 @@
       initMap();
       fetchData();
     };
+    <!-- ปุ่มค้นหาตำแหน่งปัจจุบัน -->
+  <button type="button" class="btn-location" onclick="getUserLocation()">
+    📍 แสดงตำแหน่งของฉัน (GPS)
+  </button>
+  <div id="geoStatus" class="geo-status">กำลังค้นหาพิกัด GPS ของคุณ...</div>
+
+  <!-- Map Display -->
+  <div id="map"></div>
   </script>
 </body>
 </html>
