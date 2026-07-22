@@ -8,45 +8,24 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    /* ปุ่มตำแหน่งของฉัน (GPS) */
-.btn-location {
-  width: 100%;
-  padding: 12px;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: bold;
-  cursor: pointer;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  transition: background-color 0.2s ease;
-}
-
-.btn-location:active {
-  background-color: #218838;
-}
-
-/* ข้อความแจ้งสถานะกำลังหา GPS */
-.geo-status {
-  text-align: center;
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 10px;
-  display: none; /* ซ่อนไว้ก่อน พอกดปุ่มค่อยสั่งให้แสดง */
-}
     * { box-sizing: border-box; font-family: 'Sarabun', sans-serif; }
     body { margin: 0; padding: 15px; background-color: #f8f9fa; color: #333; }
-    header { text-align: center; margin-bottom: 20px; }
-    h1 { margin: 0; color: #1e3d59; font-size: 24px; }
-    p.subtitle { color: #666; margin-top: 5px; font-size: 14px; }
+    
+    /* สไตล์สำหรับภาพหน้าปก */
+    .cover-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      margin-bottom: 15px;
+    }
 
     .filter-box {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
     }
     select {
       padding: 12px;
@@ -57,8 +36,34 @@
       width: 100%;
     }
 
+    /* ปุ่มตำแหน่งของฉัน (GPS) */
+    .btn-location {
+      width: 100%;
+      padding: 12px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      transition: background-color 0.2s ease;
+    }
+    .btn-location:active { background-color: #218838; }
+
+    /* ข้อความแจ้งสถานะกำลังหา GPS */
+    .geo-status {
+      text-align: center;
+      font-size: 13px;
+      color: #0056b3;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
     #map {
-      height: 300px;
+      height: 320px;
       width: 100%;
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -107,10 +112,8 @@
 </head>
 <body>
 
-  <header>
-    <h1>🍲 ChiangKhong Good Foods</h1>
-    <p class="subtitle">แนะนำร้านอาหารในชุมชนเชียงของ</p>
-  </header>
+  <!-- รูปภาพหน้าปก (หากโหลดรูปไม่ได้จะซ่อนไว้อัตโนมัติ) -->
+  <img src="food1.png" alt="ChiangKhong Good Foods" class="cover-image" onerror="this.style.display='none'">
 
   <!-- Filter Section -->
   <div class="filter-box">
@@ -123,13 +126,14 @@
     </select>
   </div>
 
-  <!-- Map Display -->
   <!-- ปุ่มค้นหาตำแหน่งปัจจุบัน -->
-<button type="button" class="btn-location" onclick="getUserLocation()">
-  📍 แสดงตำแหน่งของฉัน (GPS)
-</button>
+  <button type="button" class="btn-location" onclick="getUserLocation()">
+    📍 แสดงตำแหน่งของฉัน (GPS)
+  </button>
+  <div id="geoStatus" class="geo-status"></div>
 
-<div id="map"></div>
+  <!-- Map Display -->
+  <div id="map"></div>
 
   <!-- Shop List -->
   <div id="loading" class="loading">กำลังโหลดข้อมูลร้านอาหาร...</div>
@@ -138,11 +142,12 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // ** ใส่ URL ของ Google Apps Script ของคุณที่นี่ **
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZsib5oN-RADz2qmMEkBzQpXnHkx9uEcNsmsGspaR7RLtIigIlBTTeWtdUln9T8NRd/exec";
 
     let rawData = [];
-    let map, markers = [];
+    let map;
+    let markers = [];
+    let userMarker = null;
 
     // Initialize Map
     function initMap() {
@@ -235,7 +240,6 @@
       }
 
       shops.forEach(shop => {
-        // Create Card
         const card = document.createElement("div");
         card.className = "shop-card";
         card.innerHTML = `
@@ -248,7 +252,6 @@
         `;
         listContainer.appendChild(card);
 
-        // Add Marker
         if (shop.lat && shop.lng) {
           const marker = L.marker([parseFloat(shop.lat), parseFloat(shop.lng)])
             .addTo(map)
@@ -257,24 +260,59 @@
         }
       });
 
-      // Pan map to first shop position
       if (shops.length > 0 && shops[0].lat && shops[0].lng) {
         map.setView([parseFloat(shops[0].lat), parseFloat(shops[0].lng)], 14);
       }
+    }
+
+    // ฟังก์ชันค้นหาตำแหน่งผู้ใช้ (GPS)
+    function getUserLocation() {
+      const statusEl = document.getElementById("geoStatus");
+
+      if (!navigator.geolocation) {
+        alert("อุปกรณ์หรือเบราว์เซอร์ของคุณไม่รองรับ GPS");
+        return;
+      }
+
+      statusEl.innerText = "⏳ กำลังค้นหาพิกัด GPS ของคุณ...";
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLat = position.coords.latitude;
+          const userLng = position.coords.longitude;
+
+          if (userMarker) {
+            map.removeLayer(userMarker);
+          }
+
+          userMarker = L.marker([userLat, userLng])
+            .addTo(map)
+            .bindPopup("<b>📍 คุณอยู่ที่นี่</b>")
+            .openPopup();
+
+          map.setView([userLat, userLng], 15);
+          statusEl.innerText = "✅ พบตำแหน่งของคุณแล้ว";
+        },
+        (error) => {
+          let msg = "ไม่สามารถระบุตำแหน่งได้";
+          if (error.code === error.PERMISSION_DENIED) {
+            msg = "❌ โปรดอนุญาตการเข้าถึง GPS ในตั้งค่าเบราว์เซอร์";
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            msg = "❌ ไม่พบสัญญาณ GPS";
+          } else if (error.code === error.TIMEOUT) {
+            msg = "❌ ค้นหาตำแหน่งหมดเวลา";
+          }
+          statusEl.innerText = msg;
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
     }
 
     window.onload = () => {
       initMap();
       fetchData();
     };
-    <!-- ปุ่มค้นหาตำแหน่งปัจจุบัน -->
-  <button type="button" class="btn-location" onclick="getUserLocation()">
-    📍 แสดงตำแหน่งของฉัน (GPS)
-  </button>
-  <div id="geoStatus" class="geo-status">กำลังค้นหาพิกัด GPS ของคุณ...</div>
-
-  <!-- Map Display -->
-  <div id="map"></div>
   </script>
 </body>
 </html>
+
