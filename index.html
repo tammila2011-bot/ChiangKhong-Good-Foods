@@ -460,12 +460,15 @@
       try {
         await fetch(GOOGLE_SCRIPT_URL, {
           method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8",
+          },
           body: JSON.stringify(payload)
         });
 
         alert("ขอบคุณสำหรับคะแนนรีวิวครับ!");
         closeReviewModal();
-        fetchData(); // ดึงข้อมูลใหม่เพื่ออัปเดตดาวเฉลี่ยทันที
+        fetchData(); // ดึงข้อมูลใหม่เพื่ออัปเดตดาวเฉลี่ยหน้าเว็บทันที
       } catch (error) {
         alert("เกิดข้อผิดพลาดในการส่งข้อมูล โปรดลองอีกครั้ง");
         console.error("Error submitting review:", error);
