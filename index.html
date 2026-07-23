@@ -79,9 +79,27 @@
       box-shadow: 0 2px 5px rgba(0,0,0,0.05);
       border-top: 4px solid #1e3d59;
     }
-    .shop-card h3 { margin: 0 0 8px 0; font-size: 18px; color: #1e3d59; }
+    .shop-card h3 { margin: 0 0 4px 0; font-size: 18px; color: #1e3d59; }
     .shop-card p { margin: 4px 0; color: #555; font-size: 14px; }
     
+    /* สไตล์ระยะห่าง และ คะแนนดาว */
+    .distance-tag {
+      font-size: 14px;
+      color: #d9534f;
+      font-weight: bold;
+      margin-left: 6px;
+    }
+    .rating-badge {
+      display: inline-block;
+      font-size: 13px;
+      color: #856404;
+      background-color: #fff3cd;
+      padding: 3px 8px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+
     .btn-group {
       display: flex;
       flex-wrap: wrap;
@@ -212,8 +230,8 @@
     let map;
     let markers = [];
     let userMarker = null;
+    let userLat = null, userLng = null;
     
-    // ตัวแปรสำหรับระบบรีวิว
     let currentShopForReview = "";
     let selectedRating = 5;
 
@@ -281,11 +299,24 @@
       const selectedType = document.getElementById("typeSelect").value;
       const selectedGroup = document.getElementById("groupSelect").value;
 
-      const shops = rawData.filter(item => 
+      let shops = rawData.filter(item => 
         item.type_name === selectedType && item.group_name === selectedGroup
       );
 
       displayShops(shops);
+    }
+
+    // สูตรคำนวณระยะห่างระหว่างจุด 2 จุด (กิโลเมตร)
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371; // รัศมีโลก
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return (R * c).toFixed(1); // คืนค่าเป็น ทศนิยม 1 ตำแหน่ง
     }
 
     function displayShops(shops) {
@@ -300,11 +331,35 @@
         return;
       }
 
+      // คำนวณระยะห่าง (ถ้ามีพิกัดผู้ใช้)
+      shops.forEach(shop => {
+        if (userLat && userLng && shop.lat && shop.lng) {
+          shop.distance = calculateDistance(userLat, userLng, parseFloat(shop.lat), parseFloat(shop.lng));
+        } else {
+          shop.distance = null;
+        }
+      });
+
+      // เรียงลำดับร้านใกล้ที่สุดขึ้นก่อน (ถ้ามีระยะห่าง)
+      if (userLat && userLng) {
+        shops.sort((a, b) => (a.distance || 999) - (b.distance || 999));
+      }
+
       shops.forEach(shop => {
         const card = document.createElement("div");
         card.className = "shop-card";
+
+        // แสดงดาวเฉลี่ย
+        const ratingText = parseFloat(shop.avg_rating) > 0 
+          ? `⭐ ${shop.avg_rating} (${shop.review_count} รีวิว)` 
+          : `⭐ ยังไม่มีรีวิว`;
+
+        // แสดงระยะทาง
+        const distanceText = shop.distance ? `<span class="distance-tag">(📍 ${shop.distance} กม.)</span>` : '';
+
         card.innerHTML = `
-          <h3>${shop.shop_name}</h3>
+          <h3>${shop.shop_name} ${distanceText}</h3>
+          <div class="rating-badge">${ratingText}</div>
           <p>${shop.detail || 'ไม่มีข้อมูลรายละเอียด'}</p>
           <div class="btn-group">
             ${shop.lat && shop.lng ? `<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${shop.lat},${shop.lng}" target="_blank">🗺️ นำทาง</a>` : ''}
@@ -317,7 +372,7 @@
         if (shop.lat && shop.lng) {
           const marker = L.marker([parseFloat(shop.lat), parseFloat(shop.lng)])
             .addTo(map)
-            .bindPopup(`<b>${shop.shop_name}</b><br>${shop.detail || ''}`);
+            .bindPopup(`<b>${shop.shop_name}</b><br>${ratingText}<br>${shop.detail || ''}`);
           markers.push(marker);
         }
       });
@@ -339,8 +394,8 @@
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const userLat = position.coords.latitude;
-          const userLng = position.coords.longitude;
+          userLat = position.coords.latitude;
+          userLng = position.coords.longitude;
 
           if (userMarker) {
             map.removeLayer(userMarker);
@@ -352,7 +407,10 @@
             .openPopup();
 
           map.setView([userLat, userLng], 15);
-          statusEl.innerText = "✅ พบตำแหน่งของคุณแล้ว";
+          statusEl.innerText = "✅ พบตำแหน่งของคุณแล้ว (คำนวณระยะห่างเรียบร้อย)";
+
+          // อัปเดตรายการร้านใหม่เพื่อคำนวณระยะทาง
+          onGroupChange();
         },
         (error) => {
           statusEl.innerText = "❌ ไม่สามารถระบุตำแหน่ง GPS ได้";
@@ -361,12 +419,12 @@
       );
     }
 
-    // --- ฟังก์ชันสำหรับระบบรีวิว ⭐ ---
+    // --- ระบบรีวิว ---
     function openReviewModal(shopName) {
       currentShopForReview = shopName;
       document.getElementById("modalShopName").innerText = "⭐ ให้คะแนน: " + shopName;
       document.getElementById("reviewComment").value = "";
-      setRating(5); // ค่าเริ่มต้น 5 ดาว
+      setRating(5);
       document.getElementById("reviewModal").style.display = "flex";
     }
 
@@ -407,6 +465,7 @@
 
         alert("ขอบคุณสำหรับคะแนนรีวิวครับ!");
         closeReviewModal();
+        fetchData(); // ดึงข้อมูลใหม่เพื่ออัปเดตดาวเฉลี่ยทันที
       } catch (error) {
         alert("เกิดข้อผิดพลาดในการส่งข้อมูล โปรดลองอีกครั้ง");
         console.error("Error submitting review:", error);
