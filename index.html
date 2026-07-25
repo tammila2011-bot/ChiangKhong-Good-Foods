@@ -20,19 +20,25 @@
       margin-bottom: 15px;
     }
 
+    /* ช่อง Search และ Filter */
     .filter-box {
       display: flex;
       flex-direction: column;
       gap: 10px;
       margin-bottom: 12px;
     }
-    select {
+    input[type="text"], select {
       padding: 12px;
-      font-size: 16px;
+      font-size: 15px;
       border-radius: 8px;
       border: 1px solid #ccc;
       background-color: white;
       width: 100%;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #1e3d59;
+      box-shadow: 0 0 5px rgba(30, 61, 89, 0.3);
     }
 
     .btn-location {
@@ -60,7 +66,7 @@
     }
 
     #map {
-      height: 320px;
+      height: 300px;
       width: 100%;
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -74,16 +80,30 @@
     }
     .shop-card {
       background: white;
-      padding: 15px;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      overflow: hidden;
       border-top: 4px solid #1e3d59;
+      display: flex;
+      flex-direction: column;
     }
-    .shop-card h3 { margin: 0 0 4px 0; font-size: 18px; color: #1e3d59; }
-    .shop-card p { margin: 4px 0; color: #555; font-size: 14px; }
+    .shop-card-img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      background-color: #eee;
+    }
+    .shop-card-body {
+      padding: 15px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .shop-card h3 { margin: 0 0 6px 0; font-size: 18px; color: #1e3d59; }
+    .shop-card p { margin: 4px 0 10px 0; color: #555; font-size: 14px; flex: 1; }
     
     .distance-tag {
-      font-size: 14px;
+      font-size: 13px;
       color: #d9534f;
       font-weight: bold;
       margin-left: 6px;
@@ -105,12 +125,12 @@
     .btn-group {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 6px;
+      margin-top: auto;
     }
     .btn {
       flex: 1;
-      min-width: 80px;
+      min-width: 70px;
       text-align: center;
       padding: 8px 0;
       background: #17a2b8;
@@ -123,6 +143,7 @@
     }
     .btn-call { background: #28a745; }
     .btn-review { background: #ffc107; color: #333; font-weight: bold; }
+    .btn-share { background: #6c757d; }
 
     .loading {
       text-align: center;
@@ -131,7 +152,7 @@
       color: #666;
     }
 
-    /* Modal ป๊อบอัพ */
+    /* Modal */
     .modal {
       display: none;
       position: fixed;
@@ -180,10 +201,13 @@
   <!-- รูปภาพหน้าปก -->
   <img src="food1.png" alt="ChiangKhong Good Foods" class="cover-image" onerror="this.style.display='none'">
 
-  <!-- Filter Section -->
+  <!-- Filter & Search Section -->
   <div class="filter-box">
+    <!-- ช่อง ค้นหาด้วยชื่อ/เมนู -->
+    <input type="text" id="searchInput" placeholder="🔍 พิมพ์ค้นหาร้านค้า หรือ เมนูอาหาร..." oninput="onSearchInput()">
+
     <select id="typeSelect" onchange="onTypeChange()">
-      <option value="">-- เลือกประเภทอาหาร --</option>
+      <option value="">-- เลือกประเภทอาหารทั้งหมด --</option>
     </select>
 
     <select id="groupSelect" onchange="onGroupChange()" disabled>
@@ -204,7 +228,7 @@
   <div id="loading" class="loading">กำลังโหลดข้อมูลร้านอาหาร...</div>
   <div id="shopList" class="shop-list"></div>
 
-  <!-- 1. Modal สำหรับเขียนรีวิว -->
+  <!-- Modal สำหรับเขียนรีวิว -->
   <div id="reviewModal" class="modal">
     <div class="modal-content" style="text-align: center;">
       <h3 id="modalShopName" style="margin-top:0; color:#1e3d59;">ให้คะแนนร้านอาหาร</h3>
@@ -223,7 +247,7 @@
     </div>
   </div>
 
-  <!-- 2. Modal สำหรับอ่านรีวิวทั้งหมด -->
+  <!-- Modal สำหรับอ่านรีวิวทั้งหมด -->
   <div id="viewReviewsModal" class="modal">
     <div class="modal-content" style="max-height: 80vh; overflow-y: auto; text-align: left;">
       <h3 id="viewModalShopName" style="margin-top:0; color:#1e3d59; text-align:center;">รีวิวจากลูกค้า</h3>
@@ -236,6 +260,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZsib5oN-RADz2qmMEkBzQpXnHkx9uEcNsmsGspaR7RLtIigIlBTTeWtdUln9T8NRd/exec";
+    const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&q=80"; // รูปภาพสำรองกรณีไม่มีรูป
 
     let rawData = [];
     let map;
@@ -259,6 +284,7 @@
         rawData = await response.json();
         document.getElementById("loading").style.display = "none";
         populateTypes();
+        displayShops(rawData); // แสดงร้านทั้งหมดก่อนในครั้งแรก
       } catch (error) {
         document.getElementById("loading").innerText = "เกิดข้อผิดพลาดในการโหลดข้อมูล";
         console.error("Error fetching data:", error);
@@ -279,14 +305,41 @@
       });
     }
 
+    // ฟังก์ชันค้นหาคำพิมพ์
+    function onSearchInput() {
+      const searchText = document.getElementById("searchInput").value.toLowerCase().trim();
+      
+      // รีเซ็ต Dropdown เมื่อมีการพิมพ์ค้นหา
+      document.getElementById("typeSelect").value = "";
+      document.getElementById("groupSelect").value = "";
+      document.getElementById("groupSelect").disabled = true;
+
+      if (searchText === "") {
+        displayShops(rawData);
+        return;
+      }
+
+      const filtered = rawData.filter(item => {
+        const shopName = (item.shop_name || "").toLowerCase();
+        const detail = (item.detail || "").toLowerCase();
+        return shopName.includes(searchText) || detail.includes(searchText);
+      });
+
+      displayShops(filtered);
+    }
+
     function onTypeChange() {
+      document.getElementById("searchInput").value = ""; // เคลียร์ช่อง Search
       const selectedType = document.getElementById("typeSelect").value;
       const groupSelect = document.getElementById("groupSelect");
 
       groupSelect.innerHTML = '<option value="">-- เลือกกลุ่มร้านอาหาร --</option>';
       groupSelect.disabled = true;
 
-      if (!selectedType) return;
+      if (!selectedType) {
+        displayShops(rawData);
+        return;
+      }
 
       const filteredGroups = [...new Set(
         rawData
@@ -304,9 +357,12 @@
       });
 
       groupSelect.disabled = false;
+      const shops = rawData.filter(item => item.type_name === selectedType);
+      displayShops(shops);
     }
 
     function onGroupChange() {
+      document.getElementById("searchInput").value = "";
       const selectedType = document.getElementById("typeSelect").value;
       const selectedGroup = document.getElementById("groupSelect").value;
 
@@ -337,7 +393,7 @@
       markers = [];
 
       if (shops.length === 0) {
-        listContainer.innerHTML = "<p style='grid-column: 1/-1; text-align: center;'>ไม่พบร้านอาหารในหมวดหมู่นี้</p>";
+        listContainer.innerHTML = "<p style='grid-column: 1/-1; text-align: center; padding: 20px;'>ไม่พบร้านอาหารที่ค้นหา</p>";
         return;
       }
 
@@ -363,15 +419,22 @@
 
         const distanceText = shop.distance ? `<span class="distance-tag">(📍 ${shop.distance} กม.)</span>` : '';
         const commentsJson = JSON.stringify(shop.comments || []).replace(/"/g, '&quot;');
+        
+        // ตรวจสอบลิงก์รูปภาพ
+        const imgUrl = (shop.image_url && shop.image_url.trim() !== "") ? shop.image_url : DEFAULT_IMAGE;
 
         card.innerHTML = `
-          <h3>${shop.shop_name} ${distanceText}</h3>
-          <div class="rating-badge" onclick="openViewReviewsModal('${shop.shop_name}', '${commentsJson}')">${ratingText}</div>
-          <p>${shop.detail || 'ไม่มีข้อมูลรายละเอียด'}</p>
-          <div class="btn-group">
-            ${shop.lat && shop.lng ? `<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${shop.lat},${shop.lng}" target="_blank">🗺️ นำทาง</a>` : ''}
-            ${shop.phone ? `<a class="btn btn-call" href="tel:${shop.phone}">📞 โทร</a>` : ''}
-            <button class="btn btn-review" onclick="openReviewModal('${shop.shop_name}')">✍️ เขียนรีวิว</button>
+          <img src="${imgUrl}" class="shop-card-img" alt="${shop.shop_name}" onerror="this.src='${DEFAULT_IMAGE}'">
+          <div class="shop-card-body">
+            <h3>${shop.shop_name} ${distanceText}</h3>
+            <div class="rating-badge" onclick="openViewReviewsModal('${shop.shop_name}', '${commentsJson}')">${ratingText}</div>
+            <p>${shop.detail || 'ไม่มีข้อมูลรายละเอียด'}</p>
+            <div class="btn-group">
+              ${shop.lat && shop.lng ? `<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${shop.lat},${shop.lng}" target="_blank">🗺️ นำทาง</a>` : ''}
+              ${shop.phone ? `<a class="btn btn-call" href="tel:${shop.phone}">📞 โทร</a>` : ''}
+              <button class="btn btn-review" onclick="openReviewModal('${shop.shop_name}')">✍️ รีวิว</button>
+              <button class="btn btn-share" onclick="shareShop('${shop.shop_name}', '${shop.lat}', '${shop.lng}')">🔗 แชร์</button>
+            </div>
           </div>
         `;
         listContainer.appendChild(card);
@@ -416,13 +479,36 @@
           map.setView([userLat, userLng], 15);
           statusEl.innerText = "✅ พบตำแหน่งของคุณแล้ว (คำนวณระยะห่างเรียบร้อย)";
 
-          onGroupChange();
+          // โหลดรายการร้านค้าปัจจุบันใหม่เพื่อแสดงระยะทาง
+          const searchText = document.getElementById("searchInput").value.trim();
+          if (searchText !== "") {
+            onSearchInput();
+          } else {
+            onGroupChange();
+          }
         },
         (error) => {
           statusEl.innerText = "❌ ไม่สามารถระบุตำแหน่ง GPS ได้";
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
+    }
+
+    // --- ฟังก์ชันแชร์ร้านอาหาร ---
+    function shareShop(shopName, lat, lng) {
+      const mapLink = (lat && lng) ? ` https://www.google.com/maps/search/?api=1&query=${lat},${lng}` : '';
+      const shareText = `แนะนำร้านอร่อยเชียงของ: ${shopName}${mapLink}`;
+
+      if (navigator.share) {
+        navigator.share({
+          title: shopName,
+          text: shareText,
+          url: window.location.href
+        }).catch(err => console.log('Error sharing', err));
+      } else {
+        navigator.clipboard.writeText(shareText);
+        alert("คัดลอกข้อความแนะนำร้านเรียบร้อยแล้ว! นำไปวางส่งใน LINE หรือ Facebook ได้เลยครับ");
+      }
     }
 
     // --- ระบบเขียนรีวิว ---
