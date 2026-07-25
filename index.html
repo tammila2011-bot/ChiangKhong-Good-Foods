@@ -82,7 +82,6 @@
     .shop-card h3 { margin: 0 0 4px 0; font-size: 18px; color: #1e3d59; }
     .shop-card p { margin: 4px 0; color: #555; font-size: 14px; }
     
-    /* สไตล์ระยะห่าง และ คะแนนดาว */
     .distance-tag {
       font-size: 14px;
       color: #d9534f;
@@ -94,11 +93,14 @@
       font-size: 13px;
       color: #856404;
       background-color: #fff3cd;
-      padding: 3px 8px;
+      padding: 4px 10px;
       border-radius: 12px;
       margin-bottom: 8px;
       font-weight: bold;
+      cursor: pointer;
+      border: 1px solid #ffeeba;
     }
+    .rating-badge:active { background-color: #ffe8a1; }
 
     .btn-group {
       display: flex;
@@ -129,7 +131,7 @@
       color: #666;
     }
 
-    /* Modal ป๊อบอัพให้คะแนน */
+    /* Modal ป๊อบอัพ */
     .modal {
       display: none;
       position: fixed;
@@ -146,7 +148,6 @@
       border-radius: 12px;
       width: 90%;
       max-width: 400px;
-      text-align: center;
       box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
     .star-rating {
@@ -154,6 +155,7 @@
       color: #ddd;
       cursor: pointer;
       margin: 10px 0;
+      text-align: center;
     }
     .star-rating span.active { color: #ffc107; }
     .modal-content textarea {
@@ -181,7 +183,7 @@
   <!-- Filter Section -->
   <div class="filter-box">
     <select id="typeSelect" onchange="onTypeChange()">
-      <option value="">-- เลือกประเภทร้านอาหาร --</option>
+      <option value="">-- เลือกประเภทอาหาร --</option>
     </select>
 
     <select id="groupSelect" onchange="onGroupChange()" disabled>
@@ -202,9 +204,9 @@
   <div id="loading" class="loading">กำลังโหลดข้อมูลร้านอาหาร...</div>
   <div id="shopList" class="shop-list"></div>
 
-  <!-- Modal สำหรับให้คะแนนร้าน -->
+  <!-- 1. Modal สำหรับเขียนรีวิว -->
   <div id="reviewModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="text-align: center;">
       <h3 id="modalShopName" style="margin-top:0; color:#1e3d59;">ให้คะแนนร้านอาหาร</h3>
       <div class="star-rating" id="starContainer">
         <span onclick="setRating(1)">★</span>
@@ -218,6 +220,15 @@
         <button class="btn-submit" onclick="submitReview()">ส่งรีวิว</button>
         <button class="btn-close" onclick="closeReviewModal()">ยกเลิก</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 2. Modal สำหรับอ่านรีวิวทั้งหมด -->
+  <div id="viewReviewsModal" class="modal">
+    <div class="modal-content" style="max-height: 80vh; overflow-y: auto; text-align: left;">
+      <h3 id="viewModalShopName" style="margin-top:0; color:#1e3d59; text-align:center;">รีวิวจากลูกค้า</h3>
+      <div id="commentsListContainer" style="margin: 15px 0;"></div>
+      <button class="btn-close" style="width:100%;" onclick="closeViewReviewsModal()">ปิด</button>
     </div>
   </div>
 
@@ -306,9 +317,8 @@
       displayShops(shops);
     }
 
-    // สูตรคำนวณระยะห่างระหว่างจุด 2 จุด (กิโลเมตร)
     function calculateDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371; // รัศมีโลก
+      const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
       const a = 
@@ -316,7 +326,7 @@
         Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
         Math.sin(dLon/2) * Math.sin(dLon/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return (R * c).toFixed(1); // คืนค่าเป็น ทศนิยม 1 ตำแหน่ง
+      return (R * c).toFixed(1);
     }
 
     function displayShops(shops) {
@@ -331,7 +341,6 @@
         return;
       }
 
-      // คำนวณระยะห่าง (ถ้ามีพิกัดผู้ใช้)
       shops.forEach(shop => {
         if (userLat && userLng && shop.lat && shop.lng) {
           shop.distance = calculateDistance(userLat, userLng, parseFloat(shop.lat), parseFloat(shop.lng));
@@ -340,7 +349,6 @@
         }
       });
 
-      // เรียงลำดับร้านใกล้ที่สุดขึ้นก่อน (ถ้ามีระยะห่าง)
       if (userLat && userLng) {
         shops.sort((a, b) => (a.distance || 999) - (b.distance || 999));
       }
@@ -349,22 +357,21 @@
         const card = document.createElement("div");
         card.className = "shop-card";
 
-        // แสดงดาวเฉลี่ย
         const ratingText = parseFloat(shop.avg_rating) > 0 
-          ? `⭐ ${shop.avg_rating} (${shop.review_count} รีวิว)` 
+          ? `⭐ ${shop.avg_rating} (${shop.review_count} รีวิว) 💬 ดูรีวิว` 
           : `⭐ ยังไม่มีรีวิว`;
 
-        // แสดงระยะทาง
         const distanceText = shop.distance ? `<span class="distance-tag">(📍 ${shop.distance} กม.)</span>` : '';
+        const commentsJson = JSON.stringify(shop.comments || []).replace(/"/g, '&quot;');
 
         card.innerHTML = `
           <h3>${shop.shop_name} ${distanceText}</h3>
-          <div class="rating-badge">${ratingText}</div>
+          <div class="rating-badge" onclick="openViewReviewsModal('${shop.shop_name}', '${commentsJson}')">${ratingText}</div>
           <p>${shop.detail || 'ไม่มีข้อมูลรายละเอียด'}</p>
           <div class="btn-group">
             ${shop.lat && shop.lng ? `<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${shop.lat},${shop.lng}" target="_blank">🗺️ นำทาง</a>` : ''}
             ${shop.phone ? `<a class="btn btn-call" href="tel:${shop.phone}">📞 โทร</a>` : ''}
-            <button class="btn btn-review" onclick="openReviewModal('${shop.shop_name}')">⭐ รีวิว</button>
+            <button class="btn btn-review" onclick="openReviewModal('${shop.shop_name}')">✍️ เขียนรีวิว</button>
           </div>
         `;
         listContainer.appendChild(card);
@@ -409,7 +416,6 @@
           map.setView([userLat, userLng], 15);
           statusEl.innerText = "✅ พบตำแหน่งของคุณแล้ว (คำนวณระยะห่างเรียบร้อย)";
 
-          // อัปเดตรายการร้านใหม่เพื่อคำนวณระยะทาง
           onGroupChange();
         },
         (error) => {
@@ -419,10 +425,10 @@
       );
     }
 
-    // --- ระบบรีวิว ---
+    // --- ระบบเขียนรีวิว ---
     function openReviewModal(shopName) {
       currentShopForReview = shopName;
-      document.getElementById("modalShopName").innerText = "⭐ ให้คะแนน: " + shopName;
+      document.getElementById("modalShopName").innerText = "✍️ เขียนรีวิว: " + shopName;
       document.getElementById("reviewComment").value = "";
       setRating(5);
       document.getElementById("reviewModal").style.display = "flex";
@@ -468,7 +474,7 @@
 
         alert("ขอบคุณสำหรับรีวิวครับ! ข้อความของคุณอยู่ระหว่างการตรวจสอบจากผู้ดูแลระบบก่อนแสดงผลครับ");
         closeReviewModal();
-        fetchData(); // ดึงข้อมูลใหม่เพื่ออัปเดตดาวเฉลี่ยหน้าเว็บทันที
+        fetchData();
       } catch (error) {
         alert("เกิดข้อผิดพลาดในการส่งข้อมูล โปรดลองอีกครั้ง");
         console.error("Error submitting review:", error);
@@ -476,6 +482,35 @@
         submitBtn.innerText = "ส่งรีวิว";
         submitBtn.disabled = false;
       }
+    }
+
+    // --- ระบบดูรีวิว ---
+    function openViewReviewsModal(shopName, commentsJsonStr) {
+      const comments = JSON.parse(commentsJsonStr.replace(/&quot;/g, '"'));
+      document.getElementById("viewModalShopName").innerText = "💬 รีวิวร้าน: " + shopName;
+      
+      const container = document.getElementById("commentsListContainer");
+      container.innerHTML = "";
+
+      if (comments.length === 0) {
+        container.innerHTML = "<p style='text-align:center; color:#777;'>ยังไม่มีข้อความรีวิว</p>";
+      } else {
+        comments.forEach(item => {
+          const div = document.createElement("div");
+          div.style.cssText = "background:#f1f3f5; padding:10px; border-radius:8px; margin-bottom:8px; font-size:14px;";
+          div.innerHTML = `
+            <div style="color:#ffc107; font-weight:bold; margin-bottom:3px;">${'★'.repeat(item.rating)} (${item.rating}/5)</div>
+            <div style="color:#333;">${item.comment || 'ไม่ได้เขียนข้อความเพิ่มเติม'}</div>
+          `;
+          container.appendChild(div);
+        });
+      }
+
+      document.getElementById("viewReviewsModal").style.display = "flex";
+    }
+
+    function closeViewReviewsModal() {
+      document.getElementById("viewReviewsModal").style.display = "none";
     }
 
     window.onload = () => {
