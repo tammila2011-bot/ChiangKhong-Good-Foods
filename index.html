@@ -73,28 +73,53 @@
       margin-bottom: 20px;
     }
 
+    /* สไตล์การ์ดร้านอาหาร */
     .shop-list {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 15px;
+      gap: 18px;
     }
+
     .shop-card {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
       overflow: hidden;
+      border: 1px solid #eef0f2;
       border-top: 4px solid #1e3d59;
       display: flex;
       flex-direction: column;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
+    
+    .shop-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    }
+
+    /* กรอบรูปภาพสี่เหลี่ยมผืนผ้าสวยงาม (16:9) */
+    .shop-card-img-container {
+      width: 100%;
+      aspect-ratio: 16 / 9; /* กำหนดสัดส่วนสี่เหลี่ยมผืนผ้า 16:9 */
+      overflow: hidden;
+      background-color: #e9ecef;
+      position: relative;
+    }
+
     .shop-card-img {
       width: 100%;
-      height: 160px;
-      object-fit: cover;
-      background-color: #eee;
+      height: 100%;
+      object-fit: cover; /* ครอบตัดรูปภาพพอดีกรอบ ไม่ยืดเบี้ยว */
+      object-position: center;
+      transition: transform 0.3s ease;
     }
+
+    .shop-card:hover .shop-card-img {
+      transform: scale(1.04); /* เพิ่มเอฟเฟกต์ซูมรูปเบาๆ เวลามีการตอบสนอง */
+    }
+
     .shop-card-body {
-      padding: 15px;
+      padding: 14px 16px 16px 16px;
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -423,8 +448,11 @@
         // ตรวจสอบลิงก์รูปภาพ
         const imgUrl = (shop.image_url && shop.image_url.trim() !== "") ? shop.image_url : DEFAULT_IMAGE;
 
+        // ในส่วน card.innerHTML ภายในฟังก์ชัน displayShops:
         card.innerHTML = `
-          <img src="${imgUrl}" class="shop-card-img" alt="${shop.shop_name}" onerror="this.src='${DEFAULT_IMAGE}'">
+          <div class="shop-card-img-container">
+            <img src="${imgUrl}" class="shop-card-img" alt="${shop.shop_name}" onerror="this.src='${DEFAULT_IMAGE}'">
+          </div>
           <div class="shop-card-body">
             <h3>${shop.shop_name} ${distanceText}</h3>
             <div class="rating-badge" onclick="openViewReviewsModal('${shop.shop_name}', '${commentsJson}')">${ratingText}</div>
